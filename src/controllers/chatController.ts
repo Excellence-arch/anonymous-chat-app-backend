@@ -100,11 +100,9 @@ export const getChatHistory = async (req: AuthRequest, res: Response) => {
         hasMore: messages.length === limit,
       },
     });
-    return;
   } catch (error) {
     console.error('Get chat history error:', error);
     res.status(500).json({ error: 'Internal server error' });
-    return;
   }
 };
 
@@ -117,7 +115,7 @@ export const getUserChats = async (req: AuthRequest, res: Response) => {
     })
       .populate({
         path: 'participants',
-        select: 'username avatar lastSeen',
+        select: 'username avatar lastSeen isOnline',
         match: { _id: { $ne: new mongoose.Types.ObjectId(userId) } },
       })
       .sort({ lastMessageTime: -1 });
@@ -151,11 +149,9 @@ export const getUserChats = async (req: AuthRequest, res: Response) => {
     res.json({
       chats: chatsWithUnreadCount.filter((chat) => chat !== null),
     });
-    return;
   } catch (error) {
     console.error('Get user chats error:', error);
     res.status(500).json({ error: 'Internal server error' });
-    return;
   }
 };
 
@@ -164,23 +160,23 @@ export const searchUsers = async (req: AuthRequest, res: Response) => {
     const { query } = req.query;
     const currentUserId = req.user!.userId;
 
-    if (!query || typeof query !== 'string') {
-      res.status(400).json({ error: 'Search query is required' });
-      return;
+    const searchFilter: any = {
+      _id: { $ne: currentUserId },
+    };
+
+    // If query is provided, filter by username
+    if (query && typeof query === 'string' && query.trim().length > 0) {
+      searchFilter.username = { $regex: query.trim(), $options: 'i' };
     }
 
-    const users = await User.find({
-      _id: { $ne: currentUserId },
-      username: { $regex: query, $options: 'i' },
-    })
-      .select('username avatar lastSeen')
-      .limit(20);
+    const users = await User.find(searchFilter)
+      .select('username avatar lastSeen isOnline')
+      .sort({ isOnline: -1, lastSeen: -1 }) // Online users first, then by last seen
+      .limit(50);
 
     res.json({ users });
-    return;
   } catch (error) {
     console.error('Search users error:', error);
     res.status(500).json({ error: 'Internal server error' });
-    return;
   }
 };
